@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:crypto="http://www.mulesoft.org/schema/mule/crypto"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/crypto http://www.mulesoft.org/schema/mule/crypto/current/mule-crypto.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
+	<http:request-config name="HTTP_Request_configuration" doc:name="HTTP Request configuration" doc:id="afb39a1d-5b8b-4d00-82a5-7f1bd29157a9" >
+		<http:request-connection host="localhost" port="8081" />
+	</http:request-config>
+	<http:request-config name="HTTP_Request_configuration1" doc:name="HTTP Request configuration" doc:id="774c97f0-2fc6-425c-a6d5-e1262c3c80f8" >
+		<http:request-connection host="localhost" port="8081" />
+	</http:request-config>
+	<flow name="get-s-prcs-impFlow" doc:id="03cd8f51-d1d1-4b64-8d7d-912fe7b34ad9" >
+		<http:request method="GET" doc:name="Request" doc:id="bf12f781-cd9c-4490-a696-d890eafbea10" config-ref="HTTP_Request_configuration" path="/api/getdetails/{emp}" responseTimeout="1800000">
+			<http:uri-params ><![CDATA[#[output application/java
+---
+{
+	"emp" : attributes.uriParams.emp
+}]]]></http:uri-params>
+		</http:request>
+		<choice doc:name="Choice" doc:id="86cf1ff4-1c65-4c9f-8111-ed0e50b9ea0f" >
+			<when expression="#[sizeOf(payload)&gt;0]">
+				<ee:transform doc:name="Transform Message" doc:id="47dc9c9b-0ef4-4f75-a6ef-8a0da0002497" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise>
+				<try doc:name="Try" doc:id="2d406d9e-6a2b-43fd-b152-33671455cf7b" >
+					<raise-error doc:name="Raise error" doc:id="ccefdfb8-215b-4129-9a91-52184a4e1fa4" type="NO:USER" description="there is no user for these id"/>
+					<error-handler >
+						<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="fa08f8bb-7535-414f-9280-a3219808f424" >
+							<set-payload value="#[error.description]" doc:name="Set Payload" doc:id="610ea467-c138-48f8-89d0-2ab462ac6337" />
+						</on-error-continue>
+					</error-handler>
+				</try>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="post-s-prcs-impFlow1" doc:id="eab4b713-e106-4ab2-aab2-bb9751bd0bc8" >
+		<crypto:jce-encrypt-pbe doc:name="Jce encrypt pbe" doc:id="87ea1bfd-830d-40a7-b003-8b925b3067d4" password="mulesoft"/>
+		<logger level="INFO" doc:name="Logger" doc:id="077a2993-b8f5-4eff-95de-9694ecce8a3c" message="encrypt #[payload]"/>
+		<ee:transform doc:name="Transform Message" doc:id="03b01220-5964-4dad-ae0a-7c2a92de2f90" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+import dw::Crypto
+import toBase64 from dw::core::Binaries
+output application/json
+---
+toBase64(payload)]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<try doc:name="Try" doc:id="ec8d639a-c0bb-4bbd-b933-e08464911dd6" >
+			<http:request method="POST" doc:name="Request" doc:id="9cc06c76-faa7-458b-ad46-dea45f7f142e" config-ref="HTTP_Request_configuration" path="/api/postdetails" responseTimeout="1800000" />
+			<error-handler >
+				<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="a2f00a46-85dc-458e-ac7c-476dbeaface6" >
+					<set-variable value="#[payload.empID]" doc:name="Set Variable" doc:id="cac1eec5-663f-4cf6-a354-94281f3fea01" variableName="a"/>
+					<set-payload value='#["already these id " ++ vars.a  ++ " is exists in the database "]' doc:name="Set Payload" doc:id="6bb1eb6a-6d40-44c3-a931-9de916ad4607" />
+				</on-error-continue>
+			</error-handler>
+		</try>
+	</flow>
+</mule>
